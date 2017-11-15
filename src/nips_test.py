@@ -24,6 +24,7 @@ parser.add_option("-p", "--n_iter_per_epoch", dest="n_iter_per_epoch", default=1
 parser.add_option("-q", "--q", dest="q", default='gamma')
 parser.add_option("-c", "--cv", dest="cv", default=False, action="store_true")
 parser.add_option("-m", "--map", dest="map_estimate", default=False, action="store_true")
+parser.add_option("-b", "--batch_size", dest="batch_size", default=100)
 (options, args) = parser.parse_args()
 truncate = options.truncate
 n_epoch = int(options.n_epoch)
@@ -33,6 +34,7 @@ n_iter_per_epoch = int(options.n_iter_per_epoch)
 q = str(options.q)
 cv = bool(options.cv)
 map_estimate = bool(options.map_estimate)
+M = int(options.batch_size) # minibatch size
 
 data_dir = "~/data"
 logdir = '~/log/def/'
@@ -47,20 +49,19 @@ words = metadata['rows']
 # Subset to documents in 2011 and words appearing in at least two
 # documents and have a total word count of at least 10.
 doc_idx = [i for i, document in enumerate(documents)
-           if document.startswith('2011')]
+           if document.startswith('2')] # Change back to '2011'
 documents = [documents[doc] for doc in doc_idx]
 x_train = x_train[:, doc_idx]
-word_idx = np.logical_and(np.sum(x_train != 0, 1) >= 2,
-                          np.sum(x_train, 1) >= 10)
+word_idx = np.logical_and(np.sum(x_train != 0, 1) >= 20,
+                          np.sum(x_train, 1) >= 20) # Change back to 2, 10
 words = [word for word, idx in zip(words, word_idx) if idx]
 x_train = x_train[word_idx, :]
 x_train = x_train.T
 
-M = 100 # minibatch size
+#M = 100 # minibatch size
 N = x_train.shape[0]  # number of documents
 D = x_train.shape[1]  # vocabulary size
-#K = [100]
-K = [100, 30, 15]  # number of components per layer
+K = [100, 30, 15]#, 30, 15]  # number of components per layer
 shape = 0.1  # gamma shape parameter
 
 from tensorflow.python.ops import random_ops
@@ -77,16 +78,18 @@ if truncate:
     Gamma._sample_n = _sample_n
 
 # MODEL
-W2 = Gamma(0.1, 0.3, sample_shape=[K[2], K[1]])
-W1 = Gamma(0.1, 0.3, sample_shape=[K[1], K[0]])
-W0 = Gamma(0.1, 0.3, sample_shape=[K[0], D])
+Ws = {}
+Ws['W0'] = Gamma(0.1, 0.3, sample_shape=[K[0], D])
+for i in range(1, len(K)):
+  Ws['W' + str(i)] = Gamma(0.1, 0.3, sample_shape=[K[i], K[i-1]])
 
-z3 = Gamma(0.1, 0.1, sample_shape=[M, K[2]]) # Changed to minibatch
-z2 = Gamma(shape, shape / tf.matmul(z3, W2))
-z1 = Gamma(shape, shape / tf.matmul(z2, W1))
-#z1 = Gamma(0.1, 0.1, sample_shape=[M, K[0]])
-x = Poisson(tf.matmul(z1, W0))
+zs = {}
+zs['z' + str(len(K))] = Gamma(0.1, 0.1, sample_shape=[M, K[-1]])
+for i in range(len(K) - 1, -1, -1):
+  zs['z' + str(i)] = Gamma(shape, shape / tf.matmul(zs['z' + str(i + 1)], 
+            Ws['W' + str(i)]))
 
+x = Poisson(tf.matmul(zs['z1'], Ws['W0']))
 
 # INFERENCE
 def pointmass_q(shape):
@@ -116,55 +119,53 @@ def next_batch(M):
 min_shape = 1e-3
 min_scale = 1e-5
 
+qWs = {}
 if map_estimate:
-  qW2 = pointmass_q(W2.shape)
-  qW1 = pointmass_q(W1.shape)
-  qW0 = pointmass_q(W0.shape)
+  for i in range(len(K)):
+    qWs['qW' + str(i)] = pointmass_q(Ws['W' + str(i)].shape)
 else: 
-  qW0_variables = [tf.Variable(0.5 + 0.1 * tf.random_normal(W0.shape)),
-                  tf.Variable(0.1 * tf.random_normal(W0.shape)),
-                  tf.Variable(0.5 + 0.1 * tf.random_normal(W1.shape)),
-                  tf.Variable(0.1 * tf.random_normal(W1.shape)),
-                  tf.Variable(0.5 + 0.1 * tf.random_normal(W2.shape)),
-                  tf.Variable(0.1 * tf.random_normal(W2.shape))]
-
-  qW0 = Gamma(tf.maximum(tf.nn.softplus(qW0_variables[0]), min_shape),
-              tf.maximum(1.0 / tf.nn.softplus(qW0_variables[1]), 1.0 / min_scale))
-  qW1 = Gamma(tf.maximum(tf.nn.softplus(qW0_variables[2]), min_shape),
-              tf.maximum(1.0 / tf.nn.softplus(qW0_variables[3]), 1.0 / min_scale))
-  qW2 = Gamma(tf.maximum(tf.nn.softplus(qW0_variables[4]), min_shape),
-              tf.maximum(1.0 / tf.nn.softplus(qW0_variables[5]), 1.0 / min_scale))
-
-qz_variables = [tf.Variable(0.5 + 0.1 * tf.random_normal([N, K[0]])), 
-              tf.Variable(0.1 * tf.random_normal([N, K[0]])),
-              tf.Variable(0.5 + 0.1 * tf.random_normal([N, K[1]])), 
-              tf.Variable(0.1 * tf.random_normal([N, K[1]])),
-              tf.Variable(0.5 + 0.1 * tf.random_normal([N, K[2]])), 
-              tf.Variable(0.1 * tf.random_normal([N, K[2]]))]
+  qW_variables = {}
+  for i in range(len(K)):
+    qW_variables['shape' + str(i)] = tf.Variable(0.5 + 0.1 * tf.random_normal(Ws['W' + str(i)].shape))
+    qW_variables['scale' + str(i)] = tf.Variable(0.1 * tf.random_normal(Ws['W' + str(i)].shape))
+    qWs['qW' + str(i)] = Gamma(tf.maximum(tf.nn.softplus(qW_variables['shape' + str(i)]), min_shape),
+              tf.maximum(1.0 / tf.nn.softplus(qW_variables['scale' + str(i)]), 1.0 / min_scale))
 
 idx_ph = tf.placeholder(tf.int32, M)
-qz1 = Gamma(tf.maximum(tf.nn.softplus(tf.gather(qz_variables[0], idx_ph)), min_shape),
-          tf.maximum(1.0 / tf.nn.softplus(tf.gather(qz_variables[1], idx_ph)), 1.0 / min_scale)) 
-qz2 = Gamma(tf.maximum(tf.nn.softplus(tf.gather(qz_variables[2], idx_ph)), min_shape),
-          tf.maximum(1.0 / tf.nn.softplus(tf.gather(qz_variables[3], idx_ph)), 1.0 / min_scale))
-qz3 = Gamma(tf.maximum(tf.nn.softplus(tf.gather(qz_variables[4], idx_ph)), min_shape),
-          tf.maximum(1.0 / tf.nn.softplus(tf.gather(qz_variables[5], idx_ph)), 1.0 / min_scale))
+qz_variables = {}
+qzs = {}
+for i in range(1,len(K) + 1):
+  qz_variables['shape' + str(i)] = tf.Variable(0.5 + 0.1 * tf.random_normal([N, K[i-1]]))
+  qz_variables['scale' + str(i)] = tf.Variable(0.1 * tf.random_normal([N, K[i-1]]))
+  qzs['qz' + str(i)] = Gamma(tf.maximum(tf.nn.softplus(tf.gather(qz_variables['shape' + str(i)], idx_ph)), min_shape),
+          tf.maximum(1.0 / tf.nn.softplus(tf.gather(qz_variables['scale' + str(i)], idx_ph)), 1.0 / min_scale)) 
+
 x_ph = tf.placeholder(tf.float32, [M, D]) 
-# We apply variational EM with E-step over local variables
-# and M-step to point estimate the global weight matrices.
-#inference_e = ed.KLqp({z1: qz1},#, z2: qz2, z3: qz3},
-#                      data={x: x_ph, W0: qW0})#, W1: qW1, W2: qW2})
-#inference_m = ed.MAP({W0: qW0},#, W1: qW1, W2: qW2},
-#                     data={x: x_ph, z1: qz1})#, z2: qz2, z3: qz3})
+
+inference_w_map = {}
+inference_w_data = {}
+inference_z_map = {}
+inference_z_data = {}
+scale_map = {}
+
+inference_w_data[x] = x_ph
+inference_z_data[x] = x_ph
+scale_map[x] = float(N) / M
+
+for i in range(len(K)):
+  inference_w_map[Ws['W' + str(i)]] = qWs['qW' + str(i)]
+  inference_w_data[zs['z' + str(i + 1)]] = qzs['qz' + str(i + 1)]
+  
+  inference_z_map[zs['z' + str(i + 1)]] = qzs['qz' + str(i + 1)]
+  inference_z_data[Ws['W' + str(i)]] = qWs['qW' + str(i)]
+
+  scale_map['z' + str(i + 1)] = float(N) / M
 
 if map_estimate:
-  inference_w = ed.MAP({W0: qW0, W1: qW1, W2: qW2},
-                       data={x: x_ph, z1: qz1, z2: qz2, z3: qz3})
+  inference_w = ed.MAP(inference_w_map, data=inference_w_data)
 else:
-  inference_w = ed.KLqp({W0: qW0, W1: qW1, W2: qW2},
-                       data={x: x_ph, z1: qz1, z2: qz2, z3: qz3})
-inference_z = ed.KLqp({z1: qz1, z2: qz2, z3: qz3},
-                       data={x: x_ph, W0: qW0, W1: qW1, W2: qW2})
+  inference_w = ed.KLqp(inference_w_map, data=inference_w_data)
+inference_z = ed.KLqp(inference_z_map, data=inference_z_data)
 
 #optimizer_w = tf.train.RMSPropOptimizer(lr)
 #optimizer_z = tf.train.RMSPropOptimizer(lr)
@@ -173,44 +174,19 @@ logdir += timestamp + '_' + '_'.join([str(ks) for ks in K]) + \
     '_q_' + str(q) + '_lr_' + str(lr)
 
 if map_estimate:
-  inference_w.initialize(scale={x: float(N) / M, z1: float(N) / M})
+  inference_w.initialize(scale=scale_map)
 else:
-  inference_w.initialize(scale={x: float(N) / M, z1: float(N) / M},
+  inference_w.initialize(scale=scale_map,
                          control_variates=cv)
-                       #optimizer=optimizer_w)
-                       #var_list = qz_variables,
-                       #n_samples = 5,
-                       #control_variates=False)
-inference_z.initialize(scale={x: float(N) / M, z1: float(N) / M},
-                       #optimizer=optimizer_z,
-                       #var_list = qW0_variables,
-                       control_variates=False,
-                       n_samples=5,
+inference_z.initialize(scale=scale_map,
+                       control_variates=cv,
                        logdir=logdir)
-
-#kwargs = {'optimizer': optimizer_e,
-#          'n_print': 100,
-#          'logdir': logdir,
-#          'scale': {x: float(N) / M, z1: float(N) / M},
-#          #'scale': {x: float(N) / M, z1: float(N) / M, 
-#          #                    z2: float(N) / M, z3: float(N) / M},      
-#          'log_timestamp': False,
-#          'var_list': qz_variables}
-#
-#if q == 'gamma':
-#  kwargs['n_samples'] = 30
-#if cv:
-#    print("Using control variates")
-#    kwargs['control_variates'] = True
-#else:
-#    print("Not using control variates")
-#    kwargs['control_variates'] = False
-#inference_e.initialize(**kwargs)
-#inference_m.initialize(optimizer=optimizer_m)
 
 sess = ed.get_session()
 tf.global_variables_initializer().run()
 
+print(N, "documents")
+print(D, "tokens")
 print("Log directory: ", logdir)
 for epoch in range(n_epoch):
   print("Epoch {}".format(epoch))
@@ -222,20 +198,18 @@ for epoch in range(n_epoch):
     pbar.update(t)
     info_dict_e = inference_z.update(feed_dict={x_ph: x_batch, idx_ph: idx_batch})
     info_dict_m = inference_w.update(feed_dict={x_ph: x_batch, idx_ph: idx_batch})
-    #info_dict_e = inference_e.update()
-    #info_dict_m = inference_m.update()
     nll += info_dict_e['loss']
 
   # Compute perplexity averaged over a number of training iterations.
   # The model's negative log-likelihood of data is upper bounded by
   # the variational objective.
   nll = nll / n_iter_per_epoch
-  perplexity = np.exp(nll / np.sum(x_train))
+  perplexity = np.exp(nll / np.sum(x_batch)) # or should this be x_train?
   print("Negative log-likelihood <= {:1.3f}".format(nll))
   print("Perplexity <= {:0.3f}".format(perplexity))
 
   # Print top 10 words for first 10 topics.
-  qW0_vals = sess.run(qW0)
+  qW0_vals = sess.run(qWs['qW0'])
   for k in range(10):
     top_words_idx = qW0_vals[k, :].argsort()[-10:][::-1]
     top_words = " ".join([words[i] for i in top_words_idx])

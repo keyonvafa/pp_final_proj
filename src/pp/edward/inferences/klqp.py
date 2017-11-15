@@ -829,6 +829,44 @@ def build_score_rb_loss_and_gradients(inference, var_list):
     if inference.control_variates:
         print("Using control variates")
   
+          
+        '''weight_copies = [tf.identity(var) for x in range(inference.n_samples)]
+        var_p_rvs_list = []
+        var_q_rvs_list = []
+        for weight in weight_copies:
+          descendants = get_descendants(tf.convert_to_tensor(weight), q_rvs)
+          var_p_rvs = set()
+          for qz in descendants:
+            z = reverse_latent_vars[qz]
+            var_p_rvs.update(z.get_blanket(p_rvs) + [z])
+
+          var_q_rvs = set()
+          for qz in descendants:
+            var_q_rvs.update(qz.get_blanket(q_rvs) + [qz])
+
+          var_p_rvs_list.append(var_p_rvs)
+          var_q_rvs_list.append(var_q_rvs)
+        
+        pi_log_prob_2 = [0.0] * inference.n_samples
+        qi_log_prob_2 = [0.0] * inference.n_samples
+        for s in range(inference.n_samples):
+          pi_log_prob_2[s] = tf.reduce_sum([p_log_probs[s][rv] for rv in var_p_rvs_list[s]])
+          qi_log_prob_2[s] = tf.reduce_sum([q_log_probs[s][rv] for rv in var_q_rvs_list[s]])
+
+        pi_log_prob_2 = tf.stack(pi_log_prob_2)
+        qi_log_prob_2 = tf.stack(qi_log_prob_2)
+        per_example_gradients = tf.gradients(qi_log_prob_2, weight_copies)
+        print("per_example_gradients", per_example_gradients)
+
+        grad = tf.gradients(
+                    -tf.reduce_mean(qi_log_prob *
+                                    tf.stop_gradient(pi_log_prob - qi_log_prob)),
+                    var)
+        #print("qi_log_prob", qi_log_prob)
+        #print("pi_log_prob", pi_log_prob)
+        print("Not actually using control variates")
+        grads.extend(grad)'''
+
         fs = []
         hs = []
         for i in range(inference.n_samples):
