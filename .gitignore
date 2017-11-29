@@ -94,4 +94,5 @@ requirements.in
 nohome/
 
 # Data
+src/
 src_final/data
