@@ -95,4 +95,6 @@ nohome/
 
 # Data
 src/
-src_final/data
+src_final/
+final-project/jupyter_tester.py
+final-project/data/
