@@ -92,3 +92,6 @@ requirements.in
 
 # Home directory
 nohome/
+
+# Data
+src_final/data
