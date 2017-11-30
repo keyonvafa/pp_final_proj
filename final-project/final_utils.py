@@ -37,7 +37,7 @@ def load_nips_data():
     return x_full, words
 
 
-def make_savedir(K, skip, q, map_estimate, lr, data, most_skip=False):
+def make_savedir(K, skip, q, map_estimate, lr, data='nips', most_skip=False):
         timestamp = datetime.strftime(datetime.utcnow(), "%Y%m%d_%H%M%S")
         savedir = 'info/'
         savedir += timestamp + '_' + data + '_' + '_'.join(
