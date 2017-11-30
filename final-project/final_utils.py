@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from datetime import datetime
 from pp.edward.models import Gamma, Poisson, Normal, PointMass, \
-        TransformedDistribution
+    TransformedDistribution
 from pp.edward.util import Progbar
 from observations import nips
 from tensorflow.python.ops import random_ops
@@ -59,7 +59,7 @@ def load_from_savedir(savedir, K):
         zs = [0 for i in range(len(K))]
         for i in range(len(K)):
                 ws[i] = np.load(savedir + '/W' + str(i) + '.npy')
-                zs[i] = np.load(savedir + '/z' + str(i+1) + '.npy')
+                zs[i] = np.load(savedir + '/z' + str(i + 1) + '.npy')
         losses = np.load(savedir + '/losses.npy')
         perps = np.load(savedir + '/test_perplexities.npy')
         return perps, losses, zs, ws
@@ -95,9 +95,9 @@ def train_and_test(
             documents = [documents[doc] for doc in doc_idx]
             x_full = x_full[:, doc_idx]
             word_idx = np.logical_and(
-                    np.sum(x_full != 0, 1) >= 2,
-                    np.sum(x_full, 1) >= 10
-                )
+                np.sum(x_full != 0, 1) >= 2,
+                np.sum(x_full, 1) >= 10
+            )
             words = [word for word, idx in zip(words, word_idx) if idx]
             x_full = x_full[word_idx, :]
             x_full = x_full.T
@@ -124,11 +124,12 @@ def train_and_test(
 
         def _sample_n(self, n, seed=None):
             return tf.maximum(random_ops.random_gamma(
-                    shape=[n],
-                    alpha=self.concentration,
-                    beta=self.rate,
-                    dtype=self.dtype,
-                    seed=seed), 1e-8)
+                shape=[n],
+                alpha=self.concentration,
+                beta=self.rate,
+                dtype=self.dtype,
+                seed=seed), 1e-8
+            )
 
         if truncate:
                 Gamma._sample_n = _sample_n
@@ -137,7 +138,7 @@ def train_and_test(
         Ws = {}
         Ws['W0'] = Gamma(0.1, 0.3, sample_shape=[K[0], D])
         for i in range(1, len(K)):
-            Ws['W' + str(i)] = Gamma(0.1, 0.3, sample_shape=[K[i], K[i-1]])
+            Ws['W' + str(i)] = Gamma(0.1, 0.3, sample_shape=[K[i], K[i - 1]])
 
         zs = {}
         if M == -1:
@@ -183,26 +184,26 @@ def train_and_test(
         qzs = {}
         for i in range(1, len(K) + 1):
             if map_estimate:
-                qW_variables[str(i-1)] = tf.Variable(
+                qW_variables[str(i - 1)] = tf.Variable(
                     tf.random_normal(
-                        Ws['W' + str(i-1)].shape
+                        Ws['W' + str(i - 1)].shape
                     ),
-                    name='W'+str(i)
+                    name='W' + str(i)
                 )
-                qWs['qW' + str(i-1)] = PointMass(
+                qWs['qW' + str(i - 1)] = PointMass(
                     tf.maximum(
                         tf.nn.softplus(
-                            qW_variables[str(i-1)]),
+                            qW_variables[str(i - 1)]),
                         min_mean
                     )
                 )
                 if q == 'lognormal':
                     qz_variables['loc' + str(i)] = tf.Variable(
-                        tf.random_normal([N, K[i-1]]),
+                        tf.random_normal([N, K[i - 1]]),
                         name='loc_z' + str(i)
                     )
                     qz_variables['scale' + str(i)] = tf.Variable(
-                        0.1 * tf.random_normal([N, K[i-1]]),
+                        0.1 * tf.random_normal([N, K[i - 1]]),
                         name='scale_z' + str(i)
                     )
                     if M != -1:
@@ -238,10 +239,10 @@ def train_and_test(
                         )
                 else:
                     qz_variables['shape' + str(i)] = tf.Variable(
-                        0.5 + 0.1 * tf.random_normal([N, K[i-1]])
+                        0.5 + 0.1 * tf.random_normal([N, K[i - 1]])
                     )
                     qz_variables['scale' + str(i)] = tf.Variable(
-                        0.1 * tf.random_normal([N, K[i-1]])
+                        0.1 * tf.random_normal([N, K[i - 1]])
                     )
                     if M != -1:
                         qzs['qz' + str(i)] = Gamma(
@@ -281,98 +282,104 @@ def train_and_test(
                         )
             else:
                 if q == 'lognormal':
-                    qW_variables['loc' + str(i-1)] = tf.Variable(
-                        tf.random_normal(Ws['W' + str(i-1)].shape),
-                        name='loc_w' + str(i-1)
+                    qW_variables['loc' + str(i - 1)] = tf.Variable(
+                        tf.random_normal(Ws['W' + str(i - 1)].shape),
+                        name='loc_w' + str(i - 1)
                     )
-                    qW_variables['scale' + str(i-1)] = tf.Variable(
-                        0.1 * tf.random_normal(Ws['W' + str(i-1)].shape),
-                        name='scale_w' + str(i-1)
+                    qW_variables['scale' + str(i - 1)] = tf.Variable(
+                        0.1 * tf.random_normal(Ws['W' + str(i - 1)].shape),
+                        name='scale_w' + str(i - 1)
                     )
                     qz_variables['loc' + str(i)] = tf.Variable(
-                        tf.random_normal([N, K[i-1]]),
+                        tf.random_normal([N, K[i - 1]]),
                         name='loc_z' + str(i)
                     )
                     qz_variables['scale' + str(i)] = tf.Variable(
-                        0.1 * tf.random_normal([N, K[i-1]]),
+                        0.1 * tf.random_normal([N, K[i - 1]]),
                         name='scale_z' + str(i)
                     )
                     if M != -1:
-                        qWs['qW' + str(i-1)] = TransformedDistribution(
+                        qWs['qW' + str(i - 1)] = TransformedDistribution(
                             distribution=Normal(
-                                    qW_variables['loc' + str(i-1)],
-                                    tf.maximum(
-                                        tf.nn.softplus(
-                                            qW_variables['scale' + str(i-1)]
-                                        ),
-                                        min_scale
-                                    )
-                                ),
-                            bijector=tf.contrib.distributions.bijectors.Exp())
-                        qzs['qz' + str(i)] = TransformedDistribution(
-                            distribution=Normal(
-                                    tf.gather(
-                                        qz_variables['loc' + str(i)],
-                                        idx_ph
+                                qW_variables['loc' + str(i - 1)],
+                                tf.maximum(
+                                    tf.nn.softplus(
+                                        qW_variables['scale' + str(i - 1)]
                                     ),
-                                    tf.maximum(
-                                        tf.nn.softplus(
-                                            tf.gather(
-                                                qz_variables['scale' + str(i)],
-                                                idx_ph
-                                            )
-                                        ),
-                                        min_scale
-                                    )
-                                ),
-                            bijector=tf.contrib.distributions.bijectors.Exp())
-                    else:
-                        qWs['qW' + str(i-1)] = TransformedDistribution(
-                            distribution=Normal(
-                                    qW_variables['loc' + str(i-1)],
-                                    tf.maximum(
-                                        tf.nn.softplus(
-                                            qW_variables['scale' + str(i-1)]
-                                        ),
-                                        min_scale
-                                    )
-                                ),
-                            bijector=tf.contrib.distributions.bijectors.Exp())
+                                    min_scale
+                                )
+                            ),
+                            bijector=tf.contrib.distributions.bijectors.Exp()
+                        )
                         qzs['qz' + str(i)] = TransformedDistribution(
                             distribution=Normal(
+                                tf.gather(
                                     qz_variables['loc' + str(i)],
-                                    tf.maximum(
-                                        tf.nn.softplus(
-                                            qz_variables['scale' + str(i)]
-                                        ),
-                                        min_scale
-                                    )
+                                    idx_ph
                                 ),
-                            bijector=tf.contrib.distributions.bijectors.Exp())
+                                tf.maximum(
+                                    tf.nn.softplus(
+                                        tf.gather(
+                                            qz_variables['scale' + str(i)],
+                                            idx_ph
+                                        )
+                                    ),
+                                    min_scale
+                                )
+                            ),
+                            bijector=tf.contrib.distributions.bijectors.Exp()
+                        )
+                    else:
+                        qWs['qW' + str(i - 1)] = TransformedDistribution(
+                            distribution=Normal(
+                                qW_variables['loc' + str(i - 1)],
+                                tf.maximum(
+                                    tf.nn.softplus(
+                                        qW_variables['scale' + str(i - 1)]
+                                    ),
+                                    min_scale
+                                )
+                            ),
+                            bijector=tf.contrib.distributions.bijectors.Exp()
+                        )
+                        qzs['qz' + str(i)] = TransformedDistribution(
+                            distribution=Normal(
+                                qz_variables['loc' + str(i)],
+                                tf.maximum(
+                                    tf.nn.softplus(
+                                        qz_variables['scale' + str(i)]
+                                    ),
+                                    min_scale
+                                )
+                            ),
+                            bijector=tf.contrib.distributions.bijectors.Exp()
+                        )
                 else:
-                    qW_variables['shape' + str(i-1)] = tf.Variable(
-                        0.5 + 0.1 * tf.random_normal(Ws['W' + str(i-1)].shape)
+                    qW_variables['shape' + str(i - 1)] = tf.Variable(
+                        0.5 + 0.1 * tf.random_normal(
+                            Ws['W' + str(i - 1)].shape
+                        )
                     )
-                    qW_variables['scale' + str(i-1)] = tf.Variable(
-                        0.1 * tf.random_normal(Ws['W' + str(i-1)].shape)
+                    qW_variables['scale' + str(i - 1)] = tf.Variable(
+                        0.1 * tf.random_normal(Ws['W' + str(i - 1)].shape)
                     )
                     qz_variables['shape' + str(i)] = tf.Variable(
-                        0.5 + 0.1 * tf.random_normal([N, K[i-1]])
+                        0.5 + 0.1 * tf.random_normal([N, K[i - 1]])
                     )
                     qz_variables['scale' + str(i)] = tf.Variable(
-                        0.1 * tf.random_normal([N, K[i-1]])
+                        0.1 * tf.random_normal([N, K[i - 1]])
                     )
                     if M != -1:
-                        qWs['qW' + str(i-1)] = Gamma(
+                        qWs['qW' + str(i - 1)] = Gamma(
                             tf.maximum(
                                 tf.nn.softplus(
-                                    qW_variables['shape' + str(i-1)]
+                                    qW_variables['shape' + str(i - 1)]
                                 ),
                                 min_shape
                             ),
                             tf.maximum(
                                 1.0 / tf.nn.softplus(
-                                    qW_variables['scale' + str(i-1)]
+                                    qW_variables['scale' + str(i - 1)]
                                 ),
                                 1.0 / min_scale
                             )
@@ -398,16 +405,16 @@ def train_and_test(
                             )
                         )
                     else:
-                        qWs['qW' + str(i-1)] = Gamma(
+                        qWs['qW' + str(i - 1)] = Gamma(
                             tf.maximum(
                                 tf.nn.softplus(
-                                    qW_variables['shape' + str(i-1)]
+                                    qW_variables['shape' + str(i - 1)]
                                 ),
                                 min_shape
                             ),
                             tf.maximum(
                                 1.0 / tf.nn.softplus(
-                                    qW_variables['scale' + str(i-1)]
+                                    qW_variables['scale' + str(i - 1)]
                                 ),
                                 1.0 / min_scale
                             )
@@ -513,7 +520,7 @@ def train_and_test(
             Ws_test['W' + str(i)] = Gamma(
                 0.1,
                 0.3,
-                sample_shape=[K[i], K[i-1]]
+                sample_shape=[K[i], K[i - 1]]
             )
 
         zs_test = {}
@@ -553,28 +560,29 @@ def train_and_test(
         for i in range(1, len(K) + 1):
             if q == 'lognormal':
                 qz_variables_test['loc' + str(i)] = tf.Variable(
-                    tf.random_normal([N_test, K[i-1]])
+                    tf.random_normal([N_test, K[i - 1]])
                 )
                 qz_variables_test['scale' + str(i)] = tf.Variable(
-                    0.1 * tf.random_normal([N_test, K[i-1]])
+                    0.1 * tf.random_normal([N_test, K[i - 1]])
                 )
                 qzs_test['qz' + str(i)] = TransformedDistribution(
-                            distribution=Normal(
-                                    qz_variables_test['loc' + str(i)],
-                                    tf.maximum(
-                                        tf.nn.softplus(
-                                            qz_variables_test['scale' + str(i)]
-                                        ),
-                                        min_scale
-                                    )
-                                ),
-                            bijector=tf.contrib.distributions.bijectors.Exp())
+                    distribution=Normal(
+                        qz_variables_test['loc' + str(i)],
+                        tf.maximum(
+                            tf.nn.softplus(
+                                qz_variables_test['scale' + str(i)]
+                            ),
+                            min_scale
+                        )
+                    ),
+                    bijector=tf.contrib.distributions.bijectors.Exp()
+                )
             else:
                 qz_variables_test['shape' + str(i)] = tf.Variable(
-                    0.5 + 0.1 * tf.random_normal([N_test, K[i-1]])
+                    0.5 + 0.1 * tf.random_normal([N_test, K[i - 1]])
                 )
                 qz_variables_test['scale' + str(i)] = tf.Variable(
-                    0.1 * tf.random_normal([N_test, K[i-1]])
+                    0.1 * tf.random_normal([N_test, K[i - 1]])
                 )
                 qzs_test['qz' + str(i)] = Gamma(
                     tf.maximum(
@@ -646,7 +654,7 @@ def train_and_test(
                 else:
                     qW0_vals = sess.run(tf.exp(
                         qWs['qW0'].distribution.mean() +
-                        qWs['qW0'].distribution.variance()/2
+                        qWs['qW0'].distribution.variance() / 2
                     ))
 
             pbar_test = Progbar(n_test_epoch * n_test_iter)
@@ -661,7 +669,7 @@ def train_and_test(
                 else:
                     z1_mean = sess.run(tf.exp(
                         qzs_test['qz1'].distribution.mean() +
-                        qzs_test['qz1'].distribution.variance()/2
+                        qzs_test['qz1'].distribution.variance() / 2
                     ))
                 w0_mean = qW0_vals
 
@@ -701,26 +709,26 @@ def train_and_test(
             if map_estimate:
                 final_Ws[i] = sess.run(qWs['qW' + str(i)])
                 if q == 'gamma':
-                    final_zs[i+1] = sess.run(qzs['qz' + str(i+1)].mean())
+                    final_zs[i + 1] = sess.run(qzs['qz' + str(i + 1)].mean())
                 else:
-                    final_zs[i+1] = sess.run(tf.exp(
+                    final_zs[i + 1] = sess.run(tf.exp(
                         qzs['qz' + str(i + 1)].distribution.mean() +
-                        qzs['qz' + str(i + 1)].distribution.variance()/2
+                        qzs['qz' + str(i + 1)].distribution.variance() / 2
                     ))
             else:
                 if q == 'gamma':
-                    final_zs[i+1] = sess.run(qzs['qz' + str(i+1)].mean())
+                    final_zs[i + 1] = sess.run(qzs['qz' + str(i + 1)].mean())
                     final_Ws[i] = sess.run(qWs['qW' + str(i)].mean())
                 else:
-                    final_zs[i+1] = sess.run(tf.exp(
+                    final_zs[i + 1] = sess.run(tf.exp(
                         qzs['qz' + str(i + 1)].distribution.mean() +
-                        qzs['qz' + str(i + 1)].distribution.variance()/2
+                        qzs['qz' + str(i + 1)].distribution.variance() / 2
                     ))
                     final_Ws[i] = sess.run(tf.exp(
-                            qWs['qW' + str(i)].distribution.mean() +
-                            qWs['qW' + str(i)].distribution.variance()/2
-                        ))
-            np.save(savedir + '/z' + str(i + 1), final_zs[i+1])
+                        qWs['qW' + str(i)].distribution.mean() +
+                        qWs['qW' + str(i)].distribution.variance() / 2
+                    ))
+            np.save(savedir + '/z' + str(i + 1), final_zs[i + 1])
             np.save(savedir + '/W' + str(i), final_Ws[i])
         np.save(savedir + '/test_perplexities', np.array(test_perps))
         np.save(savedir + '/losses', np.array(losses))
